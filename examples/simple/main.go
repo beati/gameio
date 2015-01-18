@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/beati/sdl"
@@ -35,20 +34,14 @@ func run() error {
 	defer renderer.Destroy()
 
 	for {
-		sdl.HandleEvents()
+		sdl.PumpEvents()
 		if !sdl.Running {
 			break
 		}
 
-		if sdl.Mouse.Left {
-			fmt.Println("mouse left")
-		}
-
-		if sdl.Keyboard.Up {
-			fmt.Println("keyboard up")
-		}
-		if sdl.Keyboard.X {
-			fmt.Println("keyboard x")
+		/*sdl.HandleEvents()
+		if !sdl.Running {
+			break
 		}
 
 		err = renderer.Clear()
@@ -56,7 +49,7 @@ func run() error {
 			return err
 		}
 
-		renderer.Present()
+		renderer.Present()*/
 	}
 
 	return nil

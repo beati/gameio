@@ -11,6 +11,21 @@ SDL_Surface *
 SDL_LoadBMPWrapper(const char *file) {
 	return SDL_LoadBMP(file);
 }
+
+int filter(void *userData, SDL_Event *event) {
+	if (event->type == SDL_QUIT) {
+		return 1;
+	}
+	return 0;
+}
+
+void SetEventFilterWrapper(void) {
+	SDL_SetEventFilter(filter, NULL);
+}
+
+int QuitRequestedWrapper(void) {
+	return SDL_QuitRequested() == SDL_TRUE;
+}
 */
 import "C"
 
@@ -84,6 +99,11 @@ func Init(flags uint32) error {
 	if err != 0 {
 		return getError()
 	}
+
+	mainThreadCall(func() {
+		C.SetEventFilterWrapper()
+	})
+
 	return nil
 }
 
@@ -268,6 +288,14 @@ func (t *Texture) Destroy() {
 }
 
 var Running = true
+
+func PumpEvents() {
+	mainThreadCall(func() {
+		C.SDL_PumpEvents()
+	})
+
+	Running = C.QuitRequestedWrapper() == 0
+}
 
 func HandleEvents() {
 	event := &C.event

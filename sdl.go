@@ -5,6 +5,8 @@ package sdl
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 
+SDL_Event event = {0};
+
 SDL_Surface *
 SDL_LoadBMPWrapper(const char *file) {
 	return SDL_LoadBMP(file);
@@ -22,38 +24,41 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var mainFunc = make(chan func())
+var mainThreadFunc = make(chan func())
 
-func do(f func()) {
-	if f == nil {
-		mainFunc <- nil
-		return
-	}
-
+func mainThreadCall(f func()) {
 	done := make(chan bool, 1)
-	mainFunc <- func() {
+	mainThreadFunc <- func() {
 		f()
 		done <- true
 	}
 	<-done
 }
 
-func Main() {
-	for f := range mainFunc {
-		if f == nil {
-			break
-		}
-		f()
-	}
-}
+func Run(run func() error) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- run()
+	}()
 
-func Exit() {
-	do(nil)
+	var err error
+
+mainThreadCallLoop:
+	for {
+		select {
+		case f := <-mainThreadFunc:
+			f()
+		case err = <-done:
+			break mainThreadCallLoop
+		}
+	}
+
+	return err
 }
 
 func getError() error {
 	var err *C.char
-	do(func() {
+	mainThreadCall(func() {
 		err = C.SDL_GetError()
 	})
 	return errors.New(C.GoString(err))
@@ -73,7 +78,7 @@ const (
 
 func Init(flags uint32) error {
 	var err C.int
-	do(func() {
+	mainThreadCall(func() {
 		err = C.SDL_Init(C.Uint32(flags))
 	})
 	if err != 0 {
@@ -83,7 +88,7 @@ func Init(flags uint32) error {
 }
 
 func Quit() {
-	do(func() {
+	mainThreadCall(func() {
 		C.SDL_Quit()
 	})
 }
@@ -113,7 +118,7 @@ func CreateWindow(title string, x, y, w, h int, flags uint32) (*Window, error) {
 	defer C.free(unsafe.Pointer(t))
 
 	var win *C.SDL_Window
-	do(func() {
+	mainThreadCall(func() {
 		win = C.SDL_CreateWindow(t, C.int(x), C.int(y), C.int(w),
 			C.int(h), C.Uint32(flags))
 	})
@@ -124,7 +129,7 @@ func CreateWindow(title string, x, y, w, h int, flags uint32) (*Window, error) {
 }
 
 func (w *Window) Destroy() {
-	do(func() {
+	mainThreadCall(func() {
 		C.SDL_DestroyWindow((*C.SDL_Window)(w))
 	})
 }
@@ -140,7 +145,7 @@ const (
 
 func CreateRenderer(w *Window, index int, flags uint32) (*Renderer, error) {
 	var r *C.SDL_Renderer
-	do(func() {
+	mainThreadCall(func() {
 		r = C.SDL_CreateRenderer((*C.SDL_Window)(w), C.int(index),
 			C.Uint32(flags))
 	})
@@ -151,14 +156,14 @@ func CreateRenderer(w *Window, index int, flags uint32) (*Renderer, error) {
 }
 
 func (r *Renderer) Destroy() {
-	do(func() {
+	mainThreadCall(func() {
 		C.SDL_DestroyRenderer((*C.SDL_Renderer)(r))
 	})
 }
 
 func (r *Renderer) Clear() error {
 	var err C.int
-	do(func() {
+	mainThreadCall(func() {
 		err = C.SDL_RenderClear((*C.SDL_Renderer)(r))
 	})
 	if err != 0 {
@@ -202,7 +207,7 @@ func (r *Renderer) CopyEx(t *Texture, src, dst *Rect, angle float64,
 		ccenter = &C.SDL_Point{C.int(center.X), C.int(center.Y)}
 	}
 	var err C.int
-	do(func() {
+	mainThreadCall(func() {
 		err = C.SDL_RenderCopyEx((*C.SDL_Renderer)(r),
 			(*C.SDL_Texture)(t), csrc, cdst, C.double(angle),
 			ccenter, C.SDL_RendererFlip(flip))
@@ -214,7 +219,7 @@ func (r *Renderer) CopyEx(t *Texture, src, dst *Rect, angle float64,
 }
 
 func (r *Renderer) Present() {
-	do(func() {
+	mainThreadCall(func() {
 		C.SDL_RenderPresent((*C.SDL_Renderer)(r))
 	})
 }
@@ -226,18 +231,18 @@ func LoadBMP(r *Renderer, file string) (*Texture, error) {
 	defer C.free(unsafe.Pointer(f))
 
 	var s *C.SDL_Surface
-	do(func() {
+	mainThreadCall(func() {
 		s = C.SDL_LoadBMPWrapper(f)
 	})
 	if s == nil {
 		return nil, getError()
 	}
-	defer do(func() {
+	defer mainThreadCall(func() {
 		C.SDL_FreeSurface(s)
 	})
 
 	var err C.int
-	do(func() {
+	mainThreadCall(func() {
 		color := C.SDL_MapRGB(s.format, 255, 0, 255)
 		err = C.SDL_SetColorKey(s, C.SDL_TRUE, color)
 	})
@@ -246,7 +251,7 @@ func LoadBMP(r *Renderer, file string) (*Texture, error) {
 	}
 
 	var t *C.SDL_Texture
-	do(func() {
+	mainThreadCall(func() {
 		t = C.SDL_CreateTextureFromSurface((*C.SDL_Renderer)(r), s)
 	})
 	if t == nil {
@@ -257,12 +262,39 @@ func LoadBMP(r *Renderer, file string) (*Texture, error) {
 }
 
 func (t *Texture) Destroy() {
-	do(func() {
+	mainThreadCall(func() {
 		C.SDL_DestroyTexture((*C.SDL_Texture)(t))
 	})
 }
 
-var EventQuit bool
+var Running = true
+
+func HandleEvents() {
+	event := &C.event
+	for {
+		var noEvent bool
+		mainThreadCall(func() {
+			noEvent = int(C.SDL_PollEvent(event)) == 0
+		})
+		if noEvent {
+			break
+		}
+
+		etype := *(*C.Uint32)(unsafe.Pointer(event))
+		switch etype {
+		case C.SDL_QUIT:
+			Running = false
+		case C.SDL_KEYDOWN:
+			fallthrough
+		case C.SDL_KEYUP:
+			handleKeyboardEvent(event)
+		case C.SDL_MOUSEBUTTONDOWN:
+			fallthrough
+		case C.SDL_MOUSEBUTTONUP:
+			handleMouseButtonEvent(event)
+		}
+	}
+}
 
 func isPressed(state C.Uint8) bool {
 	return state == C.SDL_PRESSED
@@ -277,8 +309,8 @@ type MouseState struct {
 
 var Mouse MouseState
 
-func handleMouseButtonEvent(event C.SDL_Event) {
-	button := *(*C.SDL_MouseButtonEvent)(unsafe.Pointer(&event))
+func handleMouseButtonEvent(event *C.SDL_Event) {
+	button := (*C.SDL_MouseButtonEvent)(unsafe.Pointer(event))
 	switch button.button {
 	case C.SDL_BUTTON_LEFT:
 		Mouse.Left = isPressed(button.state)
@@ -300,8 +332,8 @@ type KeyboardState struct {
 
 var Keyboard KeyboardState
 
-func handleKeyboardEvent(event C.SDL_Event) {
-	key := *(*C.SDL_KeyboardEvent)(unsafe.Pointer(&event))
+func handleKeyboardEvent(event *C.SDL_Event) {
+	key := (*C.SDL_KeyboardEvent)(unsafe.Pointer(&event))
 	switch key.keysym.sym {
 	case C.SDLK_UP:
 		Keyboard.Up = isPressed(key.state)
@@ -315,35 +347,5 @@ func handleKeyboardEvent(event C.SDL_Event) {
 		Keyboard.X = isPressed(key.state)
 	case C.SDLK_z:
 		Keyboard.Z = isPressed(key.state)
-	}
-}
-
-func HandleEvents() {
-	Mouse.Left = false
-	Mouse.Right = false
-	var event C.SDL_Event
-	for {
-		var noEvent bool
-		do(func() {
-			noEvent = int(C.SDL_PollEvent(&event)) == 0
-		})
-		if noEvent {
-			break
-		}
-
-		etype := *(*C.Uint32)(unsafe.Pointer(&event))
-		switch etype {
-		case C.SDL_QUIT:
-			EventQuit = true
-		case C.SDL_KEYDOWN:
-			fallthrough
-		case C.SDL_KEYUP:
-			handleKeyboardEvent(event)
-		case C.SDL_MOUSEBUTTONDOWN:
-			handleMouseButtonEvent(event)
-			fallthrough
-		case C.SDL_MOUSEBUTTONUP:
-			//handleMouseButtonEvent(event)
-		}
 	}
 }

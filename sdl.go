@@ -31,6 +31,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"unsafe"
 )
@@ -79,6 +80,9 @@ func getError() error {
 	return errors.New(C.GoString(err))
 }
 
+var keyStateSize C.int
+var keyState *C.Uint8
+
 const (
 	InitTimer          = C.SDL_INIT_TIMER
 	InitAudio          = C.SDL_INIT_AUDIO
@@ -102,6 +106,10 @@ func Init(flags uint32) error {
 
 	mainThreadCall(func() {
 		C.SetEventFilterWrapper()
+	})
+
+	mainThreadCall(func() {
+		keyState = C.SDL_GetKeyboardState(&keyStateSize)
 	})
 
 	return nil
@@ -295,6 +303,16 @@ func PumpEvents() {
 	})
 
 	Running = C.QuitRequestedWrapper() == 0
+}
+
+func Key(scancode int) bool {
+	size := int(keyStateSize)
+	for i := 0; i < size; i++ {
+		value := *(*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(keyState)) + uintptr(i)))
+		fmt.Print(value)
+	}
+	fmt.Println("next")
+	return *keyState == 1
 }
 
 func HandleEvents() {

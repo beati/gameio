@@ -39,6 +39,8 @@ func run() error {
 			break
 		}
 
+		sdl.Key(0)
+
 		/*sdl.HandleEvents()
 		if !sdl.Running {
 			break

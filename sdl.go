@@ -1,37 +1,64 @@
 package sdl
 
 /*
+#cgo CFLAGS: -O3
 #cgo LDFLAGS: -lSDL2
 #include <SDL2/SDL.h>
 #include <stdlib.h>
+#include <string.h>
 
-SDL_Event event = {0};
+int running = 1;
 
-SDL_Surface *
-SDL_LoadBMPWrapper(const char *file) {
-	return SDL_LoadBMP(file);
+Uint8 keyboardPrev[SDL_NUM_SCANCODES];
+int numScancodes;
+const Uint8 *keyboardCurr;
+
+void
+handleEvents(void) {
+	memcpy(keyboardPrev, keyboardCurr, numScancodes);
+
+	SDL_Event event;
+	while (SDL_PollEvent(&event)) {
+		switch (event.type) {
+		case SDL_QUIT:
+			running = 0;
+			break;
+		}
+	}
 }
 
-int filter(void *userData, SDL_Event *event) {
-	if (event->type == SDL_QUIT) {
+int
+eventFilter(void *userData, SDL_Event *event) {
+	(void)userData;
+
+	switch (event->type) {
+	case SDL_QUIT:
 		return 1;
 	}
 	return 0;
 }
 
-void SetEventFilterWrapper(void) {
-	SDL_SetEventFilter(filter, NULL);
+int
+init(Uint32 flags) {
+	int err = SDL_Init(flags);
+	if (err != 0) {
+		return err;
+	}
+	SDL_SetEventFilter(eventFilter, NULL);
+	keyboardCurr = SDL_GetKeyboardState(&numScancodes);
+	return 0;
 }
 
-int QuitRequestedWrapper(void) {
-	return SDL_QuitRequested() == SDL_TRUE;
+SDL_Surface *
+SDL_LoadBMPWrapper(const char *file) {
+	return SDL_LoadBMP(file);
 }
 */
 import "C"
 
 import (
 	"errors"
-	"fmt"
+	"reflect"
 	"runtime"
 	"unsafe"
 )
@@ -58,7 +85,6 @@ func Run(run func() error) error {
 	}()
 
 	var err error
-
 mainThreadCallLoop:
 	for {
 		select {
@@ -80,9 +106,6 @@ func getError() error {
 	return errors.New(C.GoString(err))
 }
 
-var keyStateSize C.int
-var keyState *C.Uint8
-
 const (
 	InitTimer          = C.SDL_INIT_TIMER
 	InitAudio          = C.SDL_INIT_AUDIO
@@ -98,19 +121,13 @@ const (
 func Init(flags uint32) error {
 	var err C.int
 	mainThreadCall(func() {
-		err = C.SDL_Init(C.Uint32(flags))
+		err = C.init(C.Uint32(flags))
 	})
 	if err != 0 {
 		return getError()
 	}
 
-	mainThreadCall(func() {
-		C.SetEventFilterWrapper()
-	})
-
-	mainThreadCall(func() {
-		keyState = C.SDL_GetKeyboardState(&keyStateSize)
-	})
+	initKeyboardStateSlices()
 
 	return nil
 }
@@ -119,6 +136,47 @@ func Quit() {
 	mainThreadCall(func() {
 		C.SDL_Quit()
 	})
+}
+
+var Running = true
+
+func HandleEvents() {
+	mainThreadCall(func() {
+		C.handleEvents()
+	})
+
+	Running = C.running == 1
+}
+
+var keyboardPrev []uint8
+var keyboardCurr []uint8
+
+func KeyHeld(scancode int) bool {
+	return keyboardCurr[scancode] == 1
+}
+
+func KeyPressed(scancode int) bool {
+	return (keyboardCurr[scancode] &^ keyboardPrev[scancode]) == 1
+}
+
+func KeyReleased(scancode int) bool {
+	return (keyboardPrev[scancode] &^ keyboardCurr[scancode]) == 1
+}
+
+func initKeyboardStateSlices() {
+	hdr := reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&C.keyboardPrev)),
+		Len:  C.SDL_NUM_SCANCODES,
+		Cap:  C.SDL_NUM_SCANCODES,
+	}
+	keyboardPrev = *(*[]uint8)(unsafe.Pointer(&hdr))
+
+	hdr = reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(C.keyboardCurr)),
+		Len:  C.SDL_NUM_SCANCODES,
+		Cap:  C.SDL_NUM_SCANCODES,
+	}
+	keyboardCurr = *(*[]uint8)(unsafe.Pointer(&hdr))
 }
 
 type Window C.SDL_Window
@@ -293,105 +351,4 @@ func (t *Texture) Destroy() {
 	mainThreadCall(func() {
 		C.SDL_DestroyTexture((*C.SDL_Texture)(t))
 	})
-}
-
-var Running = true
-
-func PumpEvents() {
-	mainThreadCall(func() {
-		C.SDL_PumpEvents()
-	})
-
-	Running = C.QuitRequestedWrapper() == 0
-}
-
-func Key(scancode int) bool {
-	size := int(keyStateSize)
-	for i := 0; i < size; i++ {
-		value := *(*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(keyState)) + uintptr(i)))
-		fmt.Print(value)
-	}
-	fmt.Println("next")
-	return *keyState == 1
-}
-
-func HandleEvents() {
-	event := &C.event
-	for {
-		var noEvent bool
-		mainThreadCall(func() {
-			noEvent = int(C.SDL_PollEvent(event)) == 0
-		})
-		if noEvent {
-			break
-		}
-
-		etype := *(*C.Uint32)(unsafe.Pointer(event))
-		switch etype {
-		case C.SDL_QUIT:
-			Running = false
-		case C.SDL_KEYDOWN:
-			fallthrough
-		case C.SDL_KEYUP:
-			handleKeyboardEvent(event)
-		case C.SDL_MOUSEBUTTONDOWN:
-			fallthrough
-		case C.SDL_MOUSEBUTTONUP:
-			handleMouseButtonEvent(event)
-		}
-	}
-}
-
-func isPressed(state C.Uint8) bool {
-	return state == C.SDL_PRESSED
-}
-
-type MouseState struct {
-	X     int
-	Y     int
-	Left  bool
-	Right bool
-}
-
-var Mouse MouseState
-
-func handleMouseButtonEvent(event *C.SDL_Event) {
-	button := (*C.SDL_MouseButtonEvent)(unsafe.Pointer(event))
-	switch button.button {
-	case C.SDL_BUTTON_LEFT:
-		Mouse.Left = isPressed(button.state)
-	case C.SDL_BUTTON_RIGHT:
-		Mouse.Right = isPressed(button.state)
-	}
-	Mouse.X = int(button.x)
-	Mouse.Y = int(button.y)
-}
-
-type KeyboardState struct {
-	Up    bool
-	Down  bool
-	Left  bool
-	Right bool
-	X     bool
-	Z     bool
-}
-
-var Keyboard KeyboardState
-
-func handleKeyboardEvent(event *C.SDL_Event) {
-	key := (*C.SDL_KeyboardEvent)(unsafe.Pointer(&event))
-	switch key.keysym.sym {
-	case C.SDLK_UP:
-		Keyboard.Up = isPressed(key.state)
-	case C.SDLK_DOWN:
-		Keyboard.Down = isPressed(key.state)
-	case C.SDLK_LEFT:
-		Keyboard.Left = isPressed(key.state)
-	case C.SDLK_RIGHT:
-		Keyboard.Right = isPressed(key.state)
-	case C.SDLK_x:
-		Keyboard.X = isPressed(key.state)
-	case C.SDLK_z:
-		Keyboard.Z = isPressed(key.state)
-	}
 }

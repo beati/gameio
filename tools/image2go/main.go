@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -33,7 +34,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer outFile.Close()
 	out := bufio.NewWriter(outFile)
 
 	_, err = fmt.Fprintf(out, "package %s\n\n", packageName)
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	args := flag.Args()
-	for i, inFileName := range args {
+	for _, inFileName := range args {
 		if !strings.HasSuffix(inFileName, ".png") {
 			log.Println(inFileName, ": not a png file")
 			continue
@@ -61,20 +61,28 @@ func main() {
 			continue
 		}
 
-		err = convert(img, stripName(inFileName), out)
+		err = convert(img, buildName(inFileName), out)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		if i != len(args)-1 {
-			_, err = fmt.Fprintf(out, "\n\n")
-			if err != nil {
-				log.Fatal(err)
-			}
+		_, err = fmt.Fprintf(out, "\n\n")
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 
 	err = out.Flush()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = outFile.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = exec.Command("gofmt", "-w", outFileName).Run()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,21 +91,21 @@ func main() {
 const structHeaderFormat = `var %s = struct {
 	W int
 	H int
-	Pixels [%d]uint32
-}{%d, %d, [%d]uint32{
+	Pixels []uint32
+}{%d, %d, []uint32{
 `
 
 func convert(img image.Image, name string, out io.Writer) error {
 	b := img.Bounds()
 	w := b.Max.X - b.Min.X
 	h := b.Max.Y - b.Min.Y
-	_, err := fmt.Fprintf(out, structHeaderFormat, name, w*h, w, h, w*h)
+	_, err := fmt.Fprintf(out, structHeaderFormat, name, w, h)
 	if err != nil {
 		return err
 	}
 
 	pixelCount := 0
-	const columnCount = 7
+	const columnCount = 6
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
@@ -107,7 +115,7 @@ func convert(img image.Image, name string, out io.Writer) error {
 			b /= scale
 			a /= scale
 			c := r<<24 | g<<16 | b<<8 | a
-			_, err = fmt.Fprintf(out, "%#08x, ", c)
+			_, err = fmt.Fprintf(out, "%#08x,", c)
 			if err != nil {
 				return err
 			}
@@ -136,6 +144,6 @@ func convert(img image.Image, name string, out io.Writer) error {
 	return nil
 }
 
-func stripName(fileName string) string {
+func buildName(fileName string) string {
 	return strings.Title(strings.TrimSuffix(fileName, ".png"))
 }

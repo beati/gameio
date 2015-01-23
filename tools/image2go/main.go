@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -145,5 +146,6 @@ func convert(img image.Image, name string, out io.Writer) error {
 }
 
 func buildName(fileName string) string {
-	return strings.Title(strings.TrimSuffix(fileName, ".png"))
+	_, name := filepath.Split(fileName)
+	return strings.Title(strings.TrimSuffix(name, ".png"))
 }

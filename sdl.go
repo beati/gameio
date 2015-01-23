@@ -1,8 +1,8 @@
 package sdl
 
 /*
-#cgo CFLAGS: -O3
 #cgo LDFLAGS: -lSDL2
+#cgo CFLAGS: -O3
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,9 +49,33 @@ init(Uint32 flags) {
 	return 0;
 }
 
-SDL_Surface *
-SDL_LoadBMPWrapper(const char *file) {
-	return SDL_LoadBMP(file);
+SDL_Texture *
+CreateTexture(SDL_Renderer *r, int w, int h, Uint32 *pixels) {
+	SDL_Texture *t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA8888,
+		SDL_TEXTUREACCESS_STATIC, w, h);
+	if (t == NULL) {
+		goto fail1;
+	}
+
+	int err = 0;
+	err = SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+	if (err != 0) {
+		goto fail2;
+	}
+
+	err = SDL_UpdateTexture(t, NULL, pixels, w * sizeof(pixels[0]));
+	if (err != 0) {
+		goto fail2;
+	}
+
+	if (0) {
+fail2:
+		SDL_DestroyTexture(t);
+fail1:
+		t = NULL;
+	}
+
+	return t;
 }
 */
 import "C"
@@ -312,33 +336,11 @@ func (r *Renderer) Present() {
 
 type Texture C.SDL_Texture
 
-func LoadBMP(r *Renderer, file string) (*Texture, error) {
-	f := C.CString(file)
-	defer C.free(unsafe.Pointer(f))
-
-	var s *C.SDL_Surface
-	mainThreadCall(func() {
-		s = C.SDL_LoadBMPWrapper(f)
-	})
-	if s == nil {
-		return nil, getError()
-	}
-	defer mainThreadCall(func() {
-		C.SDL_FreeSurface(s)
-	})
-
-	var err C.int
-	mainThreadCall(func() {
-		color := C.SDL_MapRGB(s.format, 255, 0, 255)
-		err = C.SDL_SetColorKey(s, C.SDL_TRUE, color)
-	})
-	if err != 0 {
-		return nil, getError()
-	}
-
+func CreateTexture(r *Renderer, w, h int, pixels []uint32) (*Texture, error) {
 	var t *C.SDL_Texture
 	mainThreadCall(func() {
-		t = C.SDL_CreateTextureFromSurface((*C.SDL_Renderer)(r), s)
+		t = C.CreateTexture((*C.SDL_Renderer)(r), C.int(w), C.int(h),
+			(*C.Uint32)(&pixels[0]))
 	})
 	if t == nil {
 		return nil, getError()

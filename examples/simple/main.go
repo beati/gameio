@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"assets"
+
 	"github.com/beati/sdl"
 )
 
@@ -34,11 +36,23 @@ func run() error {
 	}
 	defer renderer.Destroy()
 
+	t, err := sdl.CreateTexture(renderer, assets.Img3.W, assets.Img3.H,
+		assets.Img3.Pixels)
+	if err != nil {
+		return err
+	}
+	defer t.Destroy()
+
+	sdl.ClockInit()
+
 	for {
 		sdl.HandleEvents()
 		if !sdl.Running {
 			break
 		}
+
+		dt := sdl.ClockElapsed()
+		fmt.Println(dt)
 
 		if sdl.KeyPressed(sdl.Key_A) {
 			fmt.Println("A pressed")
@@ -54,6 +68,10 @@ func run() error {
 		if err != nil {
 			return err
 		}
+
+		src := sdl.Rect{0, 0, assets.Img3.W, assets.Img3.H}
+		dst := sdl.Rect{100, 100, assets.Img3.W, assets.Img3.H}
+		renderer.CopyEx(t, &src, &dst, 0, nil, sdl.FlipNone)
 
 		renderer.Present()
 	}

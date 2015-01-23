@@ -23,14 +23,17 @@ func run() error {
 	}
 	defer sdl.Quit()
 
+	windowW := 800
+	windowH := 600
 	window, err := sdl.CreateWindow("SDL simple example", sdl.WindowPosUndefined,
-		sdl.WindowPosUndefined, 800, 600, 0)
+		sdl.WindowPosUndefined, windowW, windowH, 0)
 	if err != nil {
 		return err
 	}
 	defer window.Destroy()
 
 	renderer, err := sdl.CreateRenderer(window, -1, sdl.RendererPresentVSync)
+	//renderer, err := sdl.CreateRenderer(window, -1, 0)
 	if err != nil {
 		return err
 	}
@@ -45,6 +48,9 @@ func run() error {
 
 	sdl.ClockInit()
 
+	x := 100.0
+	y := 100.0
+
 	for {
 		sdl.HandleEvents()
 		if !sdl.Running {
@@ -54,14 +60,29 @@ func run() error {
 		dt := sdl.ClockElapsed()
 		fmt.Println(dt)
 
-		if sdl.KeyPressed(sdl.Key_A) {
-			fmt.Println("A pressed")
+		const speed = 400.0
+		if sdl.KeyHeld(sdl.Key_UP) {
+			y -= speed * dt.Seconds()
+		} else if sdl.KeyHeld(sdl.Key_DOWN) {
+			y += speed * dt.Seconds()
 		}
-		if sdl.KeyHeld(sdl.Key_B) {
-			fmt.Println("B held")
+		if sdl.KeyHeld(sdl.Key_LEFT) {
+			x -= speed * dt.Seconds()
+		} else if sdl.KeyHeld(sdl.Key_RIGHT) {
+			x += speed * dt.Seconds()
 		}
-		if sdl.KeyReleased(sdl.Key_C) {
-			fmt.Println("C released")
+
+		if y < 0.0 {
+			y = 0.0
+		}
+		if y > float64(windowH-assets.Img3.H) {
+			y = float64(windowH - assets.Img3.H)
+		}
+		if x < 0.0 {
+			x = 0.0
+		}
+		if x > float64(windowW-assets.Img3.W) {
+			x = float64(windowW - assets.Img3.W)
 		}
 
 		err = renderer.Clear()
@@ -70,7 +91,7 @@ func run() error {
 		}
 
 		src := sdl.Rect{0, 0, assets.Img3.W, assets.Img3.H}
-		dst := sdl.Rect{100, 100, assets.Img3.W, assets.Img3.H}
+		dst := sdl.Rect{int(x), int(y), assets.Img3.W, assets.Img3.H}
 		renderer.CopyEx(t, &src, &dst, 0, nil, sdl.FlipNone)
 
 		renderer.Present()

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"assets"
@@ -10,14 +9,14 @@ import (
 )
 
 func main() {
-	err := sdl.Run(run)
+	err = sdl.Run(run)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func run() error {
-	err := sdl.Init(sdl.InitVideo)
+	err := sdl.Init(sdl.InitVideo | sdl.InitGameController)
 	if err != nil {
 		return err
 	}
@@ -58,17 +57,17 @@ func run() error {
 		}
 
 		dt := sdl.ClockElapsed()
-		fmt.Println(dt)
+		//fmt.Println(dt)
 
 		const speed = 400.0
-		if sdl.KeyHeld(sdl.Key_UP) {
+		if sdl.KeyHeld(sdl.Key_UP) || sdl.ButtonHeld(sdl.Button_UP) {
 			y -= speed * dt.Seconds()
-		} else if sdl.KeyHeld(sdl.Key_DOWN) {
+		} else if sdl.KeyHeld(sdl.Key_DOWN) || sdl.ButtonHeld(sdl.Button_DOWN) {
 			y += speed * dt.Seconds()
 		}
-		if sdl.KeyHeld(sdl.Key_LEFT) {
+		if sdl.KeyHeld(sdl.Key_LEFT) || sdl.ButtonHeld(sdl.Button_LEFT) {
 			x -= speed * dt.Seconds()
-		} else if sdl.KeyHeld(sdl.Key_RIGHT) {
+		} else if sdl.KeyHeld(sdl.Key_RIGHT) || sdl.ButtonHeld(sdl.Button_RIGHT) {
 			x += speed * dt.Seconds()
 		}
 

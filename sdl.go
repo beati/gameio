@@ -13,9 +13,31 @@ Uint8 keyboardPrev[SDL_NUM_SCANCODES];
 int numScancodes;
 const Uint8 *keyboardCurr;
 
+SDL_GameController *controller = NULL;
+Uint8 buttonsPrev[SDL_CONTROLLER_BUTTON_MAX];
+Uint8 buttonsCurr[SDL_CONTROLLER_BUTTON_MAX];
+
 void
 handleEvents(void) {
 	memcpy(keyboardPrev, keyboardCurr, numScancodes);
+	memcpy(buttonsPrev, buttonsCurr, SDL_CONTROLLER_BUTTON_MAX);
+
+	if (controller != NULL && !SDL_GameControllerGetAttached(controller)) {
+		SDL_GameControllerClose(controller);
+		controller = NULL;
+	}
+
+	if (controller == NULL) {
+		int i = 0;
+		for (i = 0; i < SDL_NumJoysticks(); i++) {
+			if (SDL_IsGameController(i)) {
+				controller = SDL_GameControllerOpen(i);
+				if (controller != NULL) {
+					break;
+				}
+			}
+		}
+	}
 
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
@@ -23,6 +45,13 @@ handleEvents(void) {
 		case SDL_QUIT:
 			running = 0;
 			break;
+		}
+	}
+
+	if (controller != NULL) {
+		int i = 0;
+		for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++) {
+			buttonsCurr[i] = SDL_GameControllerGetButton(controller, i);
 		}
 	}
 }
@@ -46,7 +75,16 @@ init(Uint32 flags) {
 	}
 	SDL_SetEventFilter(eventFilter, NULL);
 	keyboardCurr = SDL_GetKeyboardState(&numScancodes);
+
 	return 0;
+}
+
+void
+quit() {
+	if (controller != NULL) {
+		SDL_GameControllerClose(controller);
+	}
+	SDL_Quit();
 }
 
 SDL_Texture *
@@ -152,13 +190,14 @@ func Init(flags uint32) error {
 	}
 
 	initKeyboardStateSlices()
+	initButtonsStateSlices()
 
 	return nil
 }
 
 func Quit() {
 	mainThreadCall(func() {
-		C.SDL_Quit()
+		C.quit()
 	})
 }
 
@@ -201,6 +240,55 @@ func initKeyboardStateSlices() {
 		Cap:  C.SDL_NUM_SCANCODES,
 	}
 	keyboardCurr = *(*[]uint8)(unsafe.Pointer(&hdr))
+}
+
+var buttonsPrev []uint8
+var buttonsCurr []uint8
+
+const (
+	Button_A             = C.SDL_CONTROLLER_BUTTON_A
+	Button_B             = C.SDL_CONTROLLER_BUTTON_B
+	Button_X             = C.SDL_CONTROLLER_BUTTON_X
+	Button_Y             = C.SDL_CONTROLLER_BUTTON_Y
+	Button_BACK          = C.SDL_CONTROLLER_BUTTON_BACK
+	Button_GUIDE         = C.SDL_CONTROLLER_BUTTON_GUIDE
+	Button_START         = C.SDL_CONTROLLER_BUTTON_START
+	Button_LEFTSTICK     = C.SDL_CONTROLLER_BUTTON_LEFTSTICK
+	Button_RIGHTSTICK    = C.SDL_CONTROLLER_BUTTON_RIGHTSTICK
+	Button_LEFTSHOULDER  = C.SDL_CONTROLLER_BUTTON_LEFTSHOULDER
+	Button_RIGHTSHOULDER = C.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER
+	Button_UP            = C.SDL_CONTROLLER_BUTTON_DPAD_UP
+	Button_DOWN          = C.SDL_CONTROLLER_BUTTON_DPAD_DOWN
+	Button_LEFT          = C.SDL_CONTROLLER_BUTTON_DPAD_LEFT
+	Button_RIGHT         = C.SDL_CONTROLLER_BUTTON_DPAD_RIGHT
+)
+
+func ButtonHeld(button int) bool {
+	return buttonsCurr[button] == 1
+}
+
+func ButtonPressed(button int) bool {
+	return (buttonsCurr[button] &^ buttonsPrev[button]) == 1
+}
+
+func ButtonReleased(button int) bool {
+	return (buttonsPrev[button] &^ buttonsCurr[button]) == 1
+}
+
+func initButtonsStateSlices() {
+	hdr := reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&C.buttonsPrev)),
+		Len:  C.SDL_CONTROLLER_BUTTON_MAX,
+		Cap:  C.SDL_CONTROLLER_BUTTON_MAX,
+	}
+	buttonsPrev = *(*[]uint8)(unsafe.Pointer(&hdr))
+
+	hdr = reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&C.buttonsCurr)),
+		Len:  C.SDL_CONTROLLER_BUTTON_MAX,
+		Cap:  C.SDL_CONTROLLER_BUTTON_MAX,
+	}
+	buttonsCurr = *(*[]uint8)(unsafe.Pointer(&hdr))
 }
 
 type Window C.SDL_Window

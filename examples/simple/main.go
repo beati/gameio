@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"runtime/pprof"
 
 	"assets"
 
@@ -9,6 +11,14 @@ import (
 )
 
 func main() {
+	f, err := os.Create("profile.pprof")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	err = sdl.Run(run)
 	if err != nil {
 		log.Fatal(err)
@@ -31,8 +41,8 @@ func run() error {
 	}
 	defer window.Destroy()
 
-	renderer, err := sdl.CreateRenderer(window, -1, sdl.RendererPresentVSync)
-	//renderer, err := sdl.CreateRenderer(window, -1, 0)
+	//renderer, err := sdl.CreateRenderer(window, -1, sdl.RendererPresentVSync)
+	renderer, err := sdl.CreateRenderer(window, -1, 0)
 	if err != nil {
 		return err
 	}

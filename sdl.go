@@ -87,6 +87,14 @@ quit() {
 	SDL_Quit();
 }
 
+SDL_Rect srcRect;
+SDL_Rect dstRect;
+SDL_Point center;
+int
+RenderCopyEx(SDL_Renderer *r, SDL_Texture *t, double angle, SDL_RendererFlip flip) {
+	return SDL_RenderCopyEx(r, t, &srcRect, &dstRect, angle, &center, flip);
+}
+
 SDL_Texture *
 CreateTexture(SDL_Renderer *r, int w, int h, Uint32 *pixels) {
 	SDL_Texture *t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA8888,
@@ -390,25 +398,26 @@ const (
 
 func (r *Renderer) CopyEx(t *Texture, src, dst *Rect, angle float64,
 	center *Point, flip int) error {
-	var csrc *C.SDL_Rect
-	var cdst *C.SDL_Rect
-	var ccenter *C.SDL_Point
 	if src != nil {
-		csrc = &C.SDL_Rect{C.int(src.X), C.int(src.Y), C.int(src.W),
-			C.int(src.H)}
+		C.srcRect.x = C.int(src.X)
+		C.srcRect.y = C.int(src.Y)
+		C.srcRect.w = C.int(src.W)
+		C.srcRect.h = C.int(src.H)
 	}
 	if dst != nil {
-		cdst = &C.SDL_Rect{C.int(dst.X), C.int(dst.Y), C.int(dst.W),
-			C.int(dst.H)}
+		C.dstRect.x = C.int(dst.X)
+		C.dstRect.y = C.int(dst.Y)
+		C.dstRect.w = C.int(dst.W)
+		C.dstRect.h = C.int(dst.H)
 	}
 	if center != nil {
-		ccenter = &C.SDL_Point{C.int(center.X), C.int(center.Y)}
+		C.center.x = C.int(center.X)
+		C.center.y = C.int(center.Y)
 	}
 	var err C.int
 	mainThreadCall(func() {
-		err = C.SDL_RenderCopyEx((*C.SDL_Renderer)(r),
-			(*C.SDL_Texture)(t), csrc, cdst, C.double(angle),
-			ccenter, C.SDL_RendererFlip(flip))
+		err = C.RenderCopyEx((*C.SDL_Renderer)(r), (*C.SDL_Texture)(t),
+			C.double(angle), C.SDL_RendererFlip(flip))
 	})
 	if err != 0 {
 		return getError()

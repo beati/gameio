@@ -188,7 +188,7 @@ const (
 	InitNoParachute    = C.SDL_INIT_NOPARACHUTE
 )
 
-func Init(flags uint32) error {
+func Init(flags int) error {
 	var err C.int
 	mainThreadCall(func() {
 		err = C.init(C.Uint32(flags))
@@ -319,7 +319,7 @@ const (
 	WindowAllowHighDPI      = C.SDL_WINDOW_ALLOW_HIGHDPI
 )
 
-func CreateWindow(title string, x, y, w, h int, flags uint32) (*Window, error) {
+func CreateWindow(title string, x, y, w, h int, flags int) (*Window, error) {
 	t := C.CString(title)
 	defer C.free(unsafe.Pointer(t))
 
@@ -349,7 +349,7 @@ const (
 	RendererTargetTexture = C.SDL_RENDERER_TARGETTEXTURE
 )
 
-func CreateRenderer(w *Window, index int, flags uint32) (*Renderer, error) {
+func CreateRenderer(w *Window, index int, flags int) (*Renderer, error) {
 	var r *C.SDL_Renderer
 	mainThreadCall(func() {
 		r = C.SDL_CreateRenderer((*C.SDL_Window)(w), C.int(index),
@@ -365,6 +365,17 @@ func (r *Renderer) Destroy() {
 	mainThreadCall(func() {
 		C.SDL_DestroyRenderer((*C.SDL_Renderer)(r))
 	})
+}
+
+func (r *Renderer) SetLogicalSize(w, h int) error {
+	var err C.int
+	mainThreadCall(func() {
+		err = C.SDL_RenderSetLogicalSize((*C.SDL_Renderer)(r), C.int(w), C.int(h))
+	})
+	if err != 0 {
+		return getError()
+	}
+	return nil
 }
 
 func (r *Renderer) Clear() error {

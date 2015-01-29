@@ -367,6 +367,18 @@ func (r *Renderer) Destroy() {
 	})
 }
 
+func (r *Renderer) SetDrawColor(red, green, blue, alpha uint8) error {
+	var err C.int
+	mainThreadCall(func() {
+		err = C.SDL_SetRenderDrawColor((*C.SDL_Renderer)(r),
+			C.Uint8(red), C.Uint8(green), C.Uint8(blue), C.Uint8(alpha))
+	})
+	if err != 0 {
+		return getError()
+	}
+	return nil
+}
+
 func (r *Renderer) SetLogicalSize(w, h int) error {
 	var err C.int
 	mainThreadCall(func() {

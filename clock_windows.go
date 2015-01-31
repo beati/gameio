@@ -2,10 +2,11 @@ package sdl
 
 /*
 #cgo CFLAGS: -O3
+#include <stdint.h>
 #include <Windows.h>
 
-LONGLONG freq;
-LONGLONG base;
+int64_t freq;
+int64_t base;
 
 void
 clockInit(void) {
@@ -13,12 +14,12 @@ clockInit(void) {
 	QueryPerformanceCounter((LARGE_INTEGER *)(&base));
 }
 
-LONGLONG
+int64_t
 clockElapsed() {
-	LONGLONG new;
+	int64_t new;
 	QueryPerformanceCounter((LARGE_INTEGER *)(&new));
 
-	LONGLONG elapsed;
+	int64_t elapsed;
 	elapsed = (new - base) * 1000000000;
 	elapsed /= freq;
 	base = new;

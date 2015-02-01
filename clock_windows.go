@@ -5,8 +5,8 @@ package sdl
 #include <stdint.h>
 #include <Windows.h>
 
-int64_t freq;
-int64_t base;
+static int64_t freq;
+static int64_t base;
 
 void
 clockInit(void) {
@@ -20,8 +20,7 @@ clockElapsed() {
 	QueryPerformanceCounter((LARGE_INTEGER *)(&new));
 
 	int64_t elapsed;
-	elapsed = (new - base) * 1000000000;
-	elapsed /= freq;
+	elapsed = ((new - base) * 1000000000) / freq;
 	base = new;
 	return elapsed;
 }

@@ -5,7 +5,7 @@ package sdl
 #include <stdint.h>
 #include <time.h>
 
-struct timespec base;
+static struct timespec base;
 
 int
 clockInit(void) {
@@ -47,8 +47,7 @@ func ClockElapsed() time.Duration {
 		panic("clock not initialized")
 	}
 
-	var elapsed time.Duration
-	elapsed = time.Duration(C.clockElapsed())
+	elapsed := time.Duration(C.clockElapsed())
 	if elapsed < 0 {
 		panic("clock_gettime error")
 	}

@@ -32,9 +32,7 @@ import "time"
 var initialized bool
 
 func ClockInit() {
-	mainThreadCall(func() {
-		C.clockInit()
-	})
+	C.clockInit()
 	initialized = true
 }
 
@@ -44,8 +42,6 @@ func ClockElapsed() time.Duration {
 	}
 
 	var elapsed time.Duration
-	mainThreadCall(func() {
-		elapsed = time.Duration(C.clockElapsed())
-	})
+	elapsed = time.Duration(C.clockElapsed())
 	return elapsed
 }

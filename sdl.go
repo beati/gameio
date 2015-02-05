@@ -137,42 +137,8 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var mainThreadFunc = make(chan func())
-
-func mainThreadCall(f func()) {
-	done := make(chan bool, 1)
-	mainThreadFunc <- func() {
-		f()
-		done <- true
-	}
-	<-done
-}
-
-func Run(run func() error) error {
-	done := make(chan error, 1)
-	go func() {
-		done <- run()
-	}()
-
-	var err error
-mainThreadCallLoop:
-	for {
-		select {
-		case f := <-mainThreadFunc:
-			f()
-		case err = <-done:
-			break mainThreadCallLoop
-		}
-	}
-
-	return err
-}
-
 func getError() error {
-	var err *C.char
-	mainThreadCall(func() {
-		err = C.SDL_GetError()
-	})
+	err := C.SDL_GetError()
 	return errors.New(C.GoString(err))
 }
 
@@ -189,10 +155,7 @@ const (
 )
 
 func Init(flags int) error {
-	var err C.int
-	mainThreadCall(func() {
-		err = C.init(C.Uint32(flags))
-	})
+	err := C.init(C.Uint32(flags))
 	if err != 0 {
 		return getError()
 	}
@@ -204,17 +167,13 @@ func Init(flags int) error {
 }
 
 func Quit() {
-	mainThreadCall(func() {
-		C.quit()
-	})
+	C.quit()
 }
 
 var Running = true
 
 func HandleEvents() {
-	mainThreadCall(func() {
-		C.handleEvents()
-	})
+	C.handleEvents()
 
 	Running = C.running == 1
 }
@@ -323,11 +282,8 @@ func CreateWindow(title string, x, y, w, h int, flags int) (*Window, error) {
 	t := C.CString(title)
 	defer C.free(unsafe.Pointer(t))
 
-	var win *C.SDL_Window
-	mainThreadCall(func() {
-		win = C.SDL_CreateWindow(t, C.int(x), C.int(y), C.int(w),
-			C.int(h), C.Uint32(flags))
-	})
+	win := C.SDL_CreateWindow(t, C.int(x), C.int(y), C.int(w), C.int(h),
+		C.Uint32(flags))
 	if win == nil {
 		return nil, getError()
 	}
@@ -335,9 +291,7 @@ func CreateWindow(title string, x, y, w, h int, flags int) (*Window, error) {
 }
 
 func (w *Window) Destroy() {
-	mainThreadCall(func() {
-		C.SDL_DestroyWindow((*C.SDL_Window)(w))
-	})
+	C.SDL_DestroyWindow((*C.SDL_Window)(w))
 }
 
 type Renderer C.SDL_Renderer
@@ -350,11 +304,7 @@ const (
 )
 
 func CreateRenderer(w *Window, index int, flags int) (*Renderer, error) {
-	var r *C.SDL_Renderer
-	mainThreadCall(func() {
-		r = C.SDL_CreateRenderer((*C.SDL_Window)(w), C.int(index),
-			C.Uint32(flags))
-	})
+	r := C.SDL_CreateRenderer((*C.SDL_Window)(w), C.int(index), C.Uint32(flags))
 	if r == nil {
 		return nil, getError()
 	}
@@ -362,17 +312,12 @@ func CreateRenderer(w *Window, index int, flags int) (*Renderer, error) {
 }
 
 func (r *Renderer) Destroy() {
-	mainThreadCall(func() {
-		C.SDL_DestroyRenderer((*C.SDL_Renderer)(r))
-	})
+	C.SDL_DestroyRenderer((*C.SDL_Renderer)(r))
 }
 
 func (r *Renderer) SetDrawColor(red, green, blue, alpha uint8) error {
-	var err C.int
-	mainThreadCall(func() {
-		err = C.SDL_SetRenderDrawColor((*C.SDL_Renderer)(r),
-			C.Uint8(red), C.Uint8(green), C.Uint8(blue), C.Uint8(alpha))
-	})
+	err := C.SDL_SetRenderDrawColor((*C.SDL_Renderer)(r),
+		C.Uint8(red), C.Uint8(green), C.Uint8(blue), C.Uint8(alpha))
 	if err != 0 {
 		return getError()
 	}
@@ -380,10 +325,7 @@ func (r *Renderer) SetDrawColor(red, green, blue, alpha uint8) error {
 }
 
 func (r *Renderer) SetLogicalSize(w, h int) error {
-	var err C.int
-	mainThreadCall(func() {
-		err = C.SDL_RenderSetLogicalSize((*C.SDL_Renderer)(r), C.int(w), C.int(h))
-	})
+	err := C.SDL_RenderSetLogicalSize((*C.SDL_Renderer)(r), C.int(w), C.int(h))
 	if err != 0 {
 		return getError()
 	}
@@ -391,10 +333,7 @@ func (r *Renderer) SetLogicalSize(w, h int) error {
 }
 
 func (r *Renderer) Clear() error {
-	var err C.int
-	mainThreadCall(func() {
-		err = C.SDL_RenderClear((*C.SDL_Renderer)(r))
-	})
+	err := C.SDL_RenderClear((*C.SDL_Renderer)(r))
 	if err != 0 {
 		return getError()
 	}
@@ -437,11 +376,8 @@ func (r *Renderer) CopyEx(t *Texture, src, dst *Rect, angle float64,
 		C.center.x = C.int(center.X)
 		C.center.y = C.int(center.Y)
 	}
-	var err C.int
-	mainThreadCall(func() {
-		err = C.RenderCopyEx((*C.SDL_Renderer)(r), (*C.SDL_Texture)(t),
-			C.double(angle), C.SDL_RendererFlip(flip))
-	})
+	err := C.RenderCopyEx((*C.SDL_Renderer)(r), (*C.SDL_Texture)(t), C.double(angle),
+		C.SDL_RendererFlip(flip))
 	if err != 0 {
 		return getError()
 	}
@@ -449,19 +385,14 @@ func (r *Renderer) CopyEx(t *Texture, src, dst *Rect, angle float64,
 }
 
 func (r *Renderer) Present() {
-	mainThreadCall(func() {
-		C.SDL_RenderPresent((*C.SDL_Renderer)(r))
-	})
+	C.SDL_RenderPresent((*C.SDL_Renderer)(r))
 }
 
 type Texture C.SDL_Texture
 
 func CreateTexture(r *Renderer, w, h int, pixels []uint32) (*Texture, error) {
-	var t *C.SDL_Texture
-	mainThreadCall(func() {
-		t = C.CreateTexture((*C.SDL_Renderer)(r), C.int(w), C.int(h),
-			(*C.Uint32)(&pixels[0]))
-	})
+	t := C.CreateTexture((*C.SDL_Renderer)(r), C.int(w), C.int(h),
+		(*C.Uint32)(&pixels[0]))
 	if t == nil {
 		return nil, getError()
 	}
@@ -470,7 +401,5 @@ func CreateTexture(r *Renderer, w, h int, pixels []uint32) (*Texture, error) {
 }
 
 func (t *Texture) Destroy() {
-	mainThreadCall(func() {
-		C.SDL_DestroyTexture((*C.SDL_Texture)(t))
-	})
+	C.SDL_DestroyTexture((*C.SDL_Texture)(t))
 }

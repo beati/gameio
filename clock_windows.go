@@ -1,4 +1,4 @@
-package sdl
+package gameio
 
 /*
 #cgo CFLAGS: -O3

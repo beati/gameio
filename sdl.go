@@ -1,7 +1,7 @@
-package sdl
+package gameio
 
 /*
-#cgo LDFLAGS: -lSDL2
+#cgo LDFLAGS: -lSDL2 -lfmod
 #cgo CFLAGS: -O3
 #include <SDL2/SDL.h>
 #include <stdlib.h>

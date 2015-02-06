@@ -1,4 +1,4 @@
-package sdl
+package gameio
 
 /*
 #include <SDL2/SDL.h>

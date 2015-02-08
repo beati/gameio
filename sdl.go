@@ -1,7 +1,7 @@
 package gameio
 
 /*
-#cgo LDFLAGS: -lSDL2 -lfmod
+#cgo LDFLAGS: -lSDL2
 #cgo CFLAGS: -O3
 #include <SDL2/SDL.h>
 #include <stdlib.h>
@@ -80,7 +80,7 @@ init(Uint32 flags) {
 }
 
 void
-quit() {
+quit(void) {
 	if (controller != NULL) {
 		SDL_GameControllerClose(controller);
 	}

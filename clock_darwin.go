@@ -5,21 +5,19 @@ package gameio
 #include <mach/mach_time.h>
 #include <stdint.h>
 
-static mach_timebase_info_data_t timebaseInfo;
-static uint64_t base;
+mach_timebase_info_data_t timebaseInfo;
 
-void
-clockInit(void) {
-	mach_timebase_info(&timebaseInfo);
-	base = mach_absolute_time();
+static uint64_t
+initClock(void) {
+	return mach_absolute_time();
 }
 
-uint64_t
-clockElapsed() {
+static uint64_t
+elapsed(uint64_t *base) {
 	uint64_t new = mach_absolute_time();
 
-	uint64_t elapsed = ((new - base) * timebaseInfo.numer) / timebaseInfo.denom;
-	base = new;
+	uint64_t elapsed = ((new - *base) * timebaseInfo.numer) / timebaseInfo.denom;
+	*base = new;
 	return elapsed;
 }
 */
@@ -27,17 +25,16 @@ import "C"
 
 import "time"
 
-var initialized bool
+type Clock C.uint64_t
 
-func ClockInit() {
-	C.clockInit()
-	initialized = true
+func init() {
+	C.mach_timebase_info(&C.timebaseInfo)
 }
 
-func ClockElapsed() time.Duration {
-	if !initialized {
-		panic("clock not initialized")
-	}
+func InitClock() Clock {
+	return (Clock)(C.initClock())
+}
 
-	return time.Duration(C.clockElapsed())
+func (c *Clock) Elapsed() time.Duration {
+	return time.Duration(C.elapsed((*C.uint64_t)(c)))
 }

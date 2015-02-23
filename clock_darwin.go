@@ -5,7 +5,12 @@ package gameio
 #include <mach/mach_time.h>
 #include <stdint.h>
 
-mach_timebase_info_data_t timebaseInfo;
+static mach_timebase_info_data_t timebaseInfo;
+
+static void
+initTimebaseInfo(void) {
+	mach_timebase_info(&timebaseInfo);
+}
 
 static uint64_t
 initClock(void) {
@@ -28,7 +33,7 @@ import "time"
 type Clock C.uint64_t
 
 func init() {
-	C.mach_timebase_info(&C.timebaseInfo)
+	C.initTimebaseInfo()
 }
 
 func InitClock() Clock {

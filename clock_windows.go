@@ -7,6 +7,11 @@ package gameio
 
 static int64_t freq;
 
+static void
+initFreq(void) {
+	QueryPerformanceFrequency((LARGE_INTEGER *)(&freq));
+}
+
 static int64_t
 initClock(void) {
 	int64_t base;
@@ -31,7 +36,7 @@ import "time"
 type Clock C.int64_t
 
 func init() {
-	C.QueryPerformanceFrequency((*C.LARGE_INTEGER)(&C.freq))
+	C.initFreq()
 }
 
 func InitClock() Clock {
